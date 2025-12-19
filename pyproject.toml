@@ -1,0 +1,68 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lambda-commissioning"
+dynamic = ["version"]
+description = 'Scripts for analyzing data for LAMBDA commissioning.'
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+keywords = []
+authors = [
+  { name = "Justin Smallwood", email = "justin.d.smallwood@gmail.com" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+]
+dependencies = [
+  "numpy",
+  "matplotlib",
+]
+
+[project.urls]
+Documentation = "https://github.com/Justin Smallwood/lambda#readme"
+Issues = "https://github.com/Justin Smallwood/lambda/issues"
+Source = "https://github.com/Justin Smallwood/lambda"
+
+[tool.hatch.version]
+path = "src/lambda_commissioning/__about__.py"
+
+[tool.hatch.envs.types]
+extra-dependencies = [
+  "mypy>=1.0.0",
+]
+[tool.hatch.envs.types.scripts]
+check = "mypy --install-types --non-interactive {args:src/lambda tests}"
+
+[tool.coverage.run]
+source_pkgs = ["lambda_commissioning", "tests"]
+branch = true
+parallel = true
+omit = [
+  "src/lambda_commissioning/__about__.py",
+]
+
+[tool.coverage.paths]
+lambda = ["src/lambda_commissioning", "*/lambda/src/lambda_commissioning"]
+tests = ["tests", "*/lambda_commissioning/tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "no cov",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
+
+
+[tool.hatch.build.targets.wheel]
+packages = ['src/lambda_commissioning']
