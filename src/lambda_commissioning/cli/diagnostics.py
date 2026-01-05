@@ -7,9 +7,19 @@ from lambda_commissioning.plotting import waterfallPlot,fringePlot
 from lambda_commissioning.utils import read_hdf5_data_capture,split_baseline,make_correlation_tensor
 import os,sys
 from scipy.stats import iqr
+import toml
+import importlib.resources as resources
 
-dataPath = '../data/'
-outPath = '../outputs/'
+configFile = "default_config.toml"
+configPath = "lambda_commissioning.config"
+
+with resources.files(configPath).joinpath(configFile).open("r") as f:
+    config = toml.load(f)
+
+directoryDict = config.get("paths", {})
+
+dataPath = directoryDict['dataPath']
+outPath = directoryDict['outputPath']
 
 diagnosticApp = typer.Typer()
 
