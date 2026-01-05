@@ -12,6 +12,7 @@ license = "MIT"
 keywords = []
 authors = [
   { name = "Justin Smallwood", email = "justin.d.smallwood@gmail.com" },
+  { name = "Jaiden Cook", email = "jaiden.cook1@gmail.com" }
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -25,14 +26,25 @@ classifiers = [
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dependencies = [
-  "numpy",
-  "matplotlib",
+    "typer",
+    "numpy",
+    "toml",
+    "astropy",
+    "tqdm",
+    "scipy",
+    "h5py",
+    "matplotlib",
+    "cmasher",
+    "toml"
 ]
 
 [project.urls]
 Documentation = "https://github.com/Justin Smallwood/lambda#readme"
 Issues = "https://github.com/Justin Smallwood/lambda/issues"
 Source = "https://github.com/Justin Smallwood/lambda"
+
+[project.scripts]
+run-diagnostics = "lambda_commissioning.cli.cli:diagnosticApp"
 
 [tool.hatch.version]
 path = "src/lambda_commissioning/__about__.py"
@@ -45,7 +57,7 @@ extra-dependencies = [
 check = "mypy --install-types --non-interactive {args:src/lambda tests}"
 
 [tool.coverage.run]
-source_pkgs = ["lambda_commissioning", "tests"]
+source_pkgs = ["lambda_commissioning","tests"]
 branch = true
 parallel = true
 omit = [
@@ -66,3 +78,6 @@ exclude_lines = [
 
 [tool.hatch.build.targets.wheel]
 packages = ['src/lambda_commissioning']
+
+[tool.hatch.package-data]
+"lambda_commissioning.config"= ["*.toml",".txt"]
