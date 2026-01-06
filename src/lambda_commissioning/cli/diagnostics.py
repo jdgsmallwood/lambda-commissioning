@@ -34,14 +34,12 @@ def file_header(filename: Annotated[str,typer.Argument(help="Data filename.")] =
         print("Dataset shape:", dset.shape)
         print("Dataset attrs:",list(dset.attrs.keys()))
 
-
-
 @diagnosticApp.command()
 def autos(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
-          verbose: Annotated[bool,
-                         typer.Option("-v","--verbose",help="Test optional arg.")] = False,
-          channel: Annotated[int,
-                            typer.Option("-c","--channel",help="Starting channel of the observation.")] = None):
+          verbose: Annotated[bool,typer.Option("-v","--verbose",
+                                               help="Test optional arg.")] = False,
+          channel: Annotated[int,typer.Option("-c","--channel",
+                                              help="Starting channel of the observation.")] = None):
     # TODO: Save the statistics to a csv file.
     # Creating the output directory name.
     outputDir = outPath + f"{filename.split('.')[0]}/"
@@ -54,6 +52,11 @@ def autos(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
         os.mkdir(outputAutosDir)
         if verbose:
             print(f"Making output directories for files {outputDir}")
+    else:
+        # Directory might exist, but sub directories might not.
+        if not(os.path.exists(outputAutosDir)):
+            os.mkdir(outputAutosDir)
+            print(f"Making output directory {outputAutosDir}")
 
     if filename != "":
         filePath = dataPath + filename
@@ -76,6 +79,13 @@ def autos(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
         corrTensorYY = make_correlation_tensor(visYYtensor,antPairs)
         del visXXtensor,visYYtensor
 
+        # Getting a list of the good and the zeroed antennas:
+        corrAutoVec = corrTensorXX[0,0,antIDlist,antIDlist]
+        zeroAntInds = antIDlist[corrAutoVec == 0]
+        goodAntInds = antIDlist[corrAutoVec != 0]
+        Na = len(goodAntInds)
+        Nb = Na*(Na-1)/2 # Number of baselines not including the autos.
+
     if channel is not None:
         channels = np.arange(channel,channel+Nc,Nc)
 
@@ -97,7 +107,7 @@ def autos(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
     autoYYmeanVec = np.zeros((Na,Nc))
     
     
-    for i,antInd in enumerate(antIDlist):
+    for i,antInd in enumerate(goodAntInds):
         #
         waterFallXX = np.abs(corrTensorXX[:,:,antInd,antInd])
         waterFallYY = np.abs(corrTensorYY[:,:,antInd,antInd])
@@ -154,11 +164,11 @@ def autos(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
 
 @diagnosticApp.command()
 def vis(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
-            verbose: Annotated[bool,
-                         typer.Option("-v","--verbose",help="Test optional arg.")] = False,
-            channel: Annotated[int,
-                            typer.Option("-c","--channel",help="Starting channel of the observation.")] = None):
-    
+        verbose: Annotated[bool,typer.Option("-v","--verbose",
+                                             help="Test optional arg.")] = False,
+        channel: Annotated[int,typer.Option("-c","--channel",
+                                            help="Starting channel of the observation.")] = None):
+
     # Creating the output directory name.
     outputDir = outPath + f"{filename.split('.')[0]}/"
     outputAmpDir = outputDir + "vis_amps/"
@@ -174,6 +184,20 @@ def vis(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
         os.mkdir(outputFringeDir)
         if verbose:
             print(f"Making output directories for files {outputDir}")
+    else:
+        # Directory might exist, but sub directories might not.
+        if not(os.path.exists(outputAmpDir)):
+            os.mkdir(outputAmpDir)
+            print(f"Making output directory {outputAmpDir}")
+        
+        if not(os.path.exists(outputPhaseDir)):
+            os.mkdir(outputPhaseDir)
+            print(f"Making output directory {outputPhaseDir}")
+        
+        if not(os.path.exists(outputFringeDir)):
+            os.mkdir(outputFringeDir)
+            print(f"Making output directory {outputFringeDir}")
+        
 
     if filename != "":
         filePath = dataPath + filename
@@ -196,6 +220,17 @@ def vis(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
         corrTensorYY = make_correlation_tensor(visYYtensor,antPairs)
         del visXXtensor,visYYtensor
 
+        # Getting a list of the good and the zeroed antennas:
+        corrAutoVec = corrTensorXX[0,0,antIDlist,antIDlist]
+        zeroAntInds = antIDlist[corrAutoVec == 0]
+        goodAntInds = antIDlist[corrAutoVec != 0]
+        Na = len(goodAntInds)
+        Nb = Na*(Na-1)/2 # Number of baselines not including the autos.
+        
+    else:
+        print("No file given, exiting...")
+        sys.exit(1)
+
     if channel is not None:
         channels = np.arange(channel,channel+Nc,Nc)
 
@@ -206,9 +241,9 @@ def vis(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
         print(Nt,Nc,Nb,Na)
 
     ###
-    for i,antInd in enumerate(antIDlist):
+    for i,antInd in enumerate(goodAntInds):
         ant1 = antInd
-        ant2 = np.random.choice(np.delete(antIDlist,i),size=1)[0]
+        ant2 = np.random.choice(np.delete(goodAntInds,i),size=1)[0]
 
         if channel is not None:
             titleXX = f"pol:XX, channel={channels[0]}, antID1={ant1}, antID2={ant2}, blineID={256*ant1+ant2}"
@@ -259,6 +294,8 @@ def vis(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
                 print(outputPhaseDir+outFileNameXXphase)
                 print(outputFringeDir+outFileNameXXfringe)
         else:
+            print(avgXX,stdXX)
+            print(visWaterfallXX[:,-1])
             print(f"XX vis is zero for {antInd}")
 
         #
@@ -301,6 +338,7 @@ def vis(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
                 print(outputPhaseDir+outFileNameYYphase)
                 print(outputFringeDir+outFileNameYYfringe)
         else:
+            print(avgYY,stdYY)
             print(f"YY vis is zero for {antInd}")
 
         
