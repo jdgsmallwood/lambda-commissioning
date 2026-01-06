@@ -16,13 +16,12 @@ def read_hdf5_data_capture(filePath,verbose=False):
         The dataset read from the HDF5 file.
     """
     with h5.File(filePath, 'r') as hdf_file:
-        #print(hdf_file.keys())
         dset = hdf_file['visibilities']
-        #print(dset.attrs.keys())
-        #print(hdf_file.attrs.keys())
         if verbose:
             print("Dataset keys:", list(hdf_file.keys()))
             print("Dataset shape:", dset.shape)
+            print("Dataset attributes:", list(dset.attrs.keys()))
+            print("File attributes:", list(hdf_file.attrs.keys()))
         blineIDs = hdf_file["baseline_ids"][:]
 
         if np.any(blineIDs<0):
