@@ -4,7 +4,8 @@ import numpy as np
 import matplotlib
 
 def waterfallPlot(data,times=None,channels=None,figaxs=None,cmap=cmr.dusk,
-                  phaseCond=False,norm='log',title=None,**kwargs):
+                  phaseCond=False,norm='log',title=None,vmin=None,vmax=None,
+                  **kwargs):
     """
     Waterfall plot function for visibility data and for autocorrelation data.
 
@@ -45,6 +46,37 @@ def waterfallPlot(data,times=None,channels=None,figaxs=None,cmap=cmr.dusk,
         xmin = 0
         xmax = data.shape[0]
     
+    # Determining the normalisation.
+    if norm == 'linear':
+        from matplotlib.colors import Normalize
+        if vmax is None:
+            if phaseCond:
+                vmax = np.nanmax(data)
+            else:
+                vmax = np.nanmax(np.abs(data))
+        if vmin is None:
+            if phaseCond:
+                vmin = np.nanmin(data)
+            else:
+                vmin = np.nanmin(np.abs(data))
+        if vmax == vmin:
+            vmin=0
+        norm = Normalize(vmin=vmin,vmax=vmax)
+    elif norm == 'log':
+        from matplotlib.colors import LogNorm
+        if vmax is None:
+            vmax = np.nanmax(np.abs(data))
+        if vmin is None:
+            vmin = np.nanmin(np.abs(data))
+        if vmax == vmin:
+            vmin=1e-1
+        norm = LogNorm(vmin=vmin,vmax=vmax)
+    
+    if np.any(vmin) and np.any(vmax):
+        extend='both'
+    else:
+        extend=None
+
     extent=[xmin,xmax,ymin,ymax]
     # Setting the bad colours if any.
     cmap = matplotlib.cm.get_cmap(cmap)
@@ -54,15 +86,16 @@ def waterfallPlot(data,times=None,channels=None,figaxs=None,cmap=cmr.dusk,
         clabel = "Phase [radians]"
         if norm == 'log':
             norm = 'linear'
-        im = axs.imshow(np.angle(data).T,norm=norm,cmap=cmap,interpolation='None',
-                        aspect='auto',extent=extent,**kwargs)
+        im = axs.imshow(np.angle(data).T,norm=norm,cmap=cmap,
+                        interpolation='None',aspect='auto',extent=extent
+                        ,**kwargs)
     else:
         im = axs.imshow(np.abs(data).T,norm=norm,cmap=cmap,
                         interpolation='None',aspect='auto',extent=extent,
                         **kwargs)
         clabel = "Amplitude [arb. units]"
 
-    cb = fig.colorbar(im,ax=axs,aspect=40)
+    cb = fig.colorbar(im,ax=axs,aspect=40,extend=extend)
     cb.ax.tick_params(labelsize=12)
     cb.set_label(clabel,fontsize=14)
     if title is not None:
