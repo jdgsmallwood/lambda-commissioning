@@ -49,12 +49,14 @@ def waterfallPlot(data,times=None,channels=None,figaxs=None,cmap=cmr.dusk,
     # Setting vmin and vmax
     if vmax is None:
         if phaseCond:
-            vmax = np.pi
+            #vmax = np.pi
+            vmax = np.nanmax(np.angle(data))
         else:
             vmax = np.nanmax(np.abs(data))
     if vmin is None:
         if phaseCond:
-            vmin = -np.pi
+            vmin = np.nanmin(np.angle(data))
+            #vmin = -np.pi
         else:
             vmin = np.nanmin(np.abs(data))
 
