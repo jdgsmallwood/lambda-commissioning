@@ -80,4 +80,5 @@ exclude_lines = [
 packages = ['src/lambda_commissioning']
 
 [tool.hatch.package-data]
+"lambda_commissioning.data"= ["*.toml"]
 "lambda_commissioning.config"= ["*.toml",".txt"]
