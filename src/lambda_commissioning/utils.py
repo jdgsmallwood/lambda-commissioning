@@ -1,7 +1,7 @@
 import numpy as np
 import h5py as h5
 
-def read_hdf5_data_capture(filePath,verbose=False):
+def read_hdf5_data_capture(filePath,verbose=False,returnCorrMatrix=False):
     """
     Reads a dataset from an HDF5 file and returns it as a numpy array.
 
@@ -32,7 +32,18 @@ def read_hdf5_data_capture(filePath,verbose=False):
         visXXtensor = dset[:,:,:,0,0,0] + 1j*dset[:,:,:,0,0,1]
         visYYtensor = dset[:,:,:,-1,-1,0] + 1j*dset[:,:,:,-1,-1,1]
 
-    return visXXtensor,visYYtensor,blineIDs
+    if returnCorrMatrix:
+        # If True convert the visibility tensors into a correlation matrix
+        # form, with Ntime,Nchan,Nant,Nant, being the output shape.
+        antIDs1,antIDs2 = split_baseline(blineIDs)
+        antPairs = [(ant1,antIDs2[ind]) for ind,ant1 in enumerate(antIDs1)]
+
+        visXXcorrMatrix = make_correlation_tensor(visXXtensor,antPairs)
+        visYYcorrMatrix = make_correlation_tensor(visYYtensor,antPairs)
+
+        return visXXcorrMatrix,visYYcorrMatrix,antPairs
+    else:
+        return visXXtensor,visYYtensor,blineIDs
 
 def split_baseline(baselineIDs):
     """
