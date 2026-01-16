@@ -58,6 +58,10 @@ def waterfallPlot(data,times=None,channels=None,figaxs=None,cmap=cmr.dusk,
         else:
             vmin = np.nanmin(np.abs(data))
 
+    if phaseCond:
+        if norm == 'log':
+            norm = 'linear'
+
     # Determining the normalisation.
     if norm == 'linear':
         from matplotlib.colors import Normalize
@@ -82,8 +86,6 @@ def waterfallPlot(data,times=None,channels=None,figaxs=None,cmap=cmr.dusk,
 
     if phaseCond:
         clabel = "Phase [radians]"
-        if norm == 'log':
-            norm = 'linear'
         im = axs.imshow(np.angle(data).T,norm=norm,cmap=cmap,
                         interpolation='None',aspect='auto',extent=extent
                         ,**kwargs)
