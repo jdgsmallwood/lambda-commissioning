@@ -35,6 +35,90 @@ def file_header(filename: Annotated[str,typer.Argument(help="Data filename.")] =
         print("Dataset attrs:",list(dset.attrs.keys()))
 
 @diagnosticApp.command()
+def stats(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
+          verbose: Annotated[bool,typer.Option("-v","--verbose",
+                                               help="Test optional arg.")] = False,
+          plot: Annotated[bool,typer.Option("-p","--plot",
+                                               help="Plot the deviation matrices.")] = False,
+          channel: Annotated[int,typer.Option("-c","--channel",
+                                              help="Starting channel of the observation.")] = None):
+    from lambda_commissioning.utils import calc_median_amplitude_deviation
+    from lambda_commissioning.utils import calc_median_phase_deviation
+    from lambda_commissioning.utils import split_baseline,make_correlation_tensor
+    
+    # Creating the output directory name.
+    outputDir = outPath + f"{filename.split('.')[0]}/"
+    outputStatsDir = outputDir + "stats/"
+
+    # Checking if the output directory exists. If not create it. Should always
+    # be created in the output directory, assumed to be one level up. 
+    if not(os.path.exists(outputDir)):
+        os.mkdir(outputDir)
+        os.mkdir(outputStatsDir)
+        if verbose:
+            print(f"Making output directories for files {outputDir}")
+    else:
+        # Directory might exist, but sub directories might not.
+        if not(os.path.exists(outputStatsDir)):
+            os.mkdir(outputStatsDir)
+            print(f"Making output directory {outputStatsDir}")
+
+    if filename == "":
+        raise ValueError("Input filename.")
+    
+    filePath = dataPath + filename
+    if not(os.path.exists(filePath)):
+        raise FileNotFoundError(f"No file {filePath}.")
+    # Reading in the data.
+    visXXtensor,visYYtensor,antPairs = read_hdf5_data_capture(filePath,
+                                                              verbose=verbose,
+                                                              returnCorrMatrix=True)
+  
+    # Calculating the median phase and amplitude deviation per channel.
+    ampDevMatrixXX = calc_median_amplitude_deviation(visXXtensor)
+    phaseDevMatrixXX = calc_median_phase_deviation(visXXtensor)
+    ampDevMatrixYY = calc_median_amplitude_deviation(visYYtensor)
+    phaseDevMatrixYY = calc_median_phase_deviation(visYYtensor)
+
+
+    fig,axs = plt.subplots(2,2,figsize=(12,10),constrained_layout=True,
+                               sharex=True,sharey=True)
+
+    im1 = axs[0,0].imshow(ampDevMatrixXX,norm='log')
+    cb1 = fig.colorbar(im1,ax=axs[0,0],label='Amp [arb units]')
+    axs[0,0].set_title('Amp Deviation XX')
+    axs[0,0].set_ylabel('AntIDs')
+
+
+    im2 = axs[0,1].imshow(ampDevMatrixYY,norm='log')
+    cb2 = fig.colorbar(im2,ax=axs[0,1],label='Amp [arb units]')
+    axs[0,1].set_title('Amp Deviation YY')
+
+    im3 = axs[1,0].imshow(phaseDevMatrixXX,norm='log')
+    cb3 = fig.colorbar(im3,ax=axs[1,0],label='Phase [rad]')
+    axs[1,0].set_title('Phase Deviation XX')
+    axs[1,0].set_xlabel('AntIDs')
+    axs[1,0].set_ylabel('AntIDs')
+
+    im4 = axs[1,1].imshow(phaseDevMatrixYY,norm='log')
+    cb4 = fig.colorbar(im4,ax=axs[1,1],label='Phase [rad]')
+    axs[1,1].set_title('Phase Deviation YY')
+    axs[1,1].set_xlabel('AntIDs')
+
+    outFileName = "Amplitude_Phase_Deviation.png"
+    fig.savefig(outputStatsDir+outFileName,dpi=300,bbox_inches='tight')
+    
+    # Saving the deviation matrices.
+    outFileNameData = "Amplitude_Phase_Deviation.npz"
+    np.savez(outputStatsDir+outFileNameData,ampDevMatrixXX=ampDevMatrixXX,
+             ampDevMatrixYY=ampDevMatrixYY,phaseDevMatrixXX=phaseDevMatrixXX,
+             phaseDevMatrixYY=phaseDevMatrixYY)
+
+    if plot:
+        plt.show()
+
+
+@diagnosticApp.command()
 def autos(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
           verbose: Annotated[bool,typer.Option("-v","--verbose",
                                                help="Test optional arg.")] = False,
@@ -58,33 +142,38 @@ def autos(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
             os.mkdir(outputAutosDir)
             print(f"Making output directory {outputAutosDir}")
 
-    if filename != "":
-        filePath = dataPath + filename
-        # Reading in the data.
-        visXXtensor,visYYtensor,blineIDs = read_hdf5_data_capture(filePath,
-                                                                  verbose=verbose)
-        # Splitting the baselines into antenna IDs for each baseline.
-        ants1,ants2 = split_baseline(blineIDs)
-        antPairs = np.vstack((ants1,ants2)).T
-        antIDlist = np.unique(ants1)
-        Na = np.unique(ants1).size # Number of antennas.
-        Nt = visXXtensor.shape[0] # Number of time steps.
-        Nc = visXXtensor.shape[1] # Number of channels.
-        Nb = Na*(Na-1)/2 # Number of baselines not including the autos.
+    if filename == "":
+        raise ValueError("Input filename not fiven.")
+    
+    filePath = dataPath + filename
+    if not(os.path.exists(filePath)):
+        raise FileNotFoundError(f"No file {filePath}.")
 
-        # Reorganising into correlation tensos (matrix for each time and 
-        # channel). Not strictly necessary, but useful for calibrating and 
-        # performing matrix operations on the correlation data.
-        corrTensorXX = make_correlation_tensor(visXXtensor,antPairs)
-        corrTensorYY = make_correlation_tensor(visYYtensor,antPairs)
-        del visXXtensor,visYYtensor
+    # Reading in the data.
+    visXXtensor,visYYtensor,blineIDs = read_hdf5_data_capture(filePath,
+                                                                verbose=verbose)
+    # Splitting the baselines into antenna IDs for each baseline.
+    ants1,ants2 = split_baseline(blineIDs)
+    antPairs = np.vstack((ants1,ants2)).T
+    antIDlist = np.unique(ants1)
+    Na = np.unique(ants1).size # Number of antennas.
+    Nt = visXXtensor.shape[0] # Number of time steps.
+    Nc = visXXtensor.shape[1] # Number of channels.
+    Nb = Na*(Na-1)/2 # Number of baselines not including the autos.
 
-        # Getting a list of the good and the zeroed antennas:
-        corrAutoVec = corrTensorXX[0,0,antIDlist,antIDlist]
-        zeroAntInds = antIDlist[corrAutoVec == 0]
-        goodAntInds = antIDlist[corrAutoVec != 0]
-        Na = len(goodAntInds)
-        Nb = Na*(Na-1)/2 # Number of baselines not including the autos.
+    # Reorganising into correlation tensos (matrix for each time and 
+    # channel). Not strictly necessary, but useful for calibrating and 
+    # performing matrix operations on the correlation data.
+    corrTensorXX = make_correlation_tensor(visXXtensor,antPairs)
+    corrTensorYY = make_correlation_tensor(visYYtensor,antPairs)
+    del visXXtensor,visYYtensor
+
+    # Getting a list of the good and the zeroed antennas:
+    corrAutoVec = corrTensorXX[0,0,antIDlist,antIDlist]
+    zeroAntInds = antIDlist[corrAutoVec == 0]
+    goodAntInds = antIDlist[corrAutoVec != 0]
+    Na = len(goodAntInds)
+    Nb = Na*(Na-1)/2 # Number of baselines not including the autos.
 
     if channel is not None:
         channels = np.arange(channel,channel+Nc,Nc)
@@ -199,37 +288,37 @@ def vis(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
             print(f"Making output directory {outputFringeDir}")
         
 
-    if filename != "":
-        filePath = dataPath + filename
-        # Reading in the data.
-        visXXtensor,visYYtensor,blineIDs = read_hdf5_data_capture(filePath,
-                                                                  verbose=verbose)
-        # Splitting the baselines into antenna IDs for each baseline.
-        ants1,ants2 = split_baseline(blineIDs)
-        antPairs = np.vstack((ants1,ants2)).T
-        antIDlist = np.unique(ants1)
-        Na = np.unique(ants1).size # Number of antennas.
-        Nt = visXXtensor.shape[0] # Number of time steps.
-        Nc = visXXtensor.shape[1] # Number of channels.
-        Nb = Na*(Na-1)/2 # Number of baselines not including the autos.
+    if filename == "":
+        raise ValueError("Input filename not given.")
+    
+    filePath = dataPath + filename
+    if not(os.path.exists(filePath)):
+        raise FileNotFoundError(f"No file {filePath}.")
+    # Reading in the data.
+    visXXtensor,visYYtensor,blineIDs = read_hdf5_data_capture(filePath,
+                                                                verbose=verbose)
+    # Splitting the baselines into antenna IDs for each baseline.
+    ants1,ants2 = split_baseline(blineIDs)
+    antPairs = np.vstack((ants1,ants2)).T
+    antIDlist = np.unique(ants1)
+    Na = np.unique(ants1).size # Number of antennas.
+    Nt = visXXtensor.shape[0] # Number of time steps.
+    Nc = visXXtensor.shape[1] # Number of channels.
+    Nb = Na*(Na-1)/2 # Number of baselines not including the autos.
 
-        # Reorganising into correlation tensos (matrix for each time and 
-        # channel). Not strictly necessary, but useful for calibrating and 
-        # performing matrix operations on the correlation data.
-        corrTensorXX = make_correlation_tensor(visXXtensor,antPairs)
-        corrTensorYY = make_correlation_tensor(visYYtensor,antPairs)
-        del visXXtensor,visYYtensor
+    # Reorganising into correlation tensos (matrix for each time and 
+    # channel). Not strictly necessary, but useful for calibrating and 
+    # performing matrix operations on the correlation data.
+    corrTensorXX = make_correlation_tensor(visXXtensor,antPairs)
+    corrTensorYY = make_correlation_tensor(visYYtensor,antPairs)
+    del visXXtensor,visYYtensor
 
-        # Getting a list of the good and the zeroed antennas:
-        corrAutoVec = corrTensorXX[0,0,antIDlist,antIDlist]
-        zeroAntInds = antIDlist[corrAutoVec == 0]
-        goodAntInds = antIDlist[corrAutoVec != 0]
-        Na = len(goodAntInds)
-        Nb = Na*(Na-1)/2 # Number of baselines not including the autos.
-        
-    else:
-        print("No file given, exiting...")
-        sys.exit(1)
+    # Getting a list of the good and the zeroed antennas:
+    corrAutoVec = corrTensorXX[0,0,antIDlist,antIDlist]
+    zeroAntInds = antIDlist[corrAutoVec == 0]
+    goodAntInds = antIDlist[corrAutoVec != 0]
+    Na = len(goodAntInds)
+    Nb = Na*(Na-1)/2 # Number of baselines not including the autos.
 
     if channel is not None:
         channels = np.arange(channel,channel+Nc,Nc)
@@ -276,7 +365,7 @@ def vis(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
             fig,axs = plt.subplots(1,figsize=(2*W,W),sharex=True,
                                     constrained_layout=True)
             waterfallPlot(visWaterfallPhaseXX,cmap=cmr.wildfire,title=titleXX,
-                        figaxs=(fig,axs),phaseCond=True)
+                          figaxs=(fig,axs),phaseCond=True,norm='linear')
             outFileNameXXphase = f"vis_phase_waterfall_ant1_{ant1}_ant2_{ant2}_polXX.png"
             fig.savefig(outputPhaseDir+outFileNameXXphase,dpi=300,bbox_inches='tight')
             plt.close()
@@ -311,7 +400,7 @@ def vis(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
             fig,axs = plt.subplots(1,figsize=(2*W,W),sharex=True,
                                     constrained_layout=True)
             waterfallPlot(visWaterfallYY,cmap=cmap,title=titleYY,
-                        figaxs=(fig,axs))
+                          figaxs=(fig,axs))
             outFileNameYYamp = f"vis_amp_waterfall_ant1_{ant1}_ant2_{ant2}_polYY.png"
             fig.savefig(outputAmpDir+outFileNameYYamp,dpi=300,bbox_inches='tight')
             plt.close()
@@ -320,7 +409,7 @@ def vis(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
             fig,axs = plt.subplots(1,figsize=(2*W,W),sharex=True,
                                     constrained_layout=True)
             waterfallPlot(visWaterfallPhaseYY,cmap=cmr.wildfire,title=titleYY,
-                        figaxs=(fig,axs),phaseCond=True)
+                          figaxs=(fig,axs),phaseCond=True,norm='linear')
             outFileNameYYphase = f"vis_phase_waterfall_ant1_{ant1}_ant2_{ant2}_polYY.png"
             fig.savefig(outputPhaseDir+outFileNameYYphase,dpi=300,bbox_inches='tight')
             plt.close()
