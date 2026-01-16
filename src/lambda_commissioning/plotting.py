@@ -46,28 +46,26 @@ def waterfallPlot(data,times=None,channels=None,figaxs=None,cmap=cmr.dusk,
         xmin = 0
         xmax = data.shape[0]
     
+    # Setting vmin and vmax
+    if vmax is None:
+        if phaseCond:
+            vmax = np.pi
+        else:
+            vmax = np.nanmax(np.abs(data))
+    if vmin is None:
+        if phaseCond:
+            vmin = -np.pi
+        else:
+            vmin = np.nanmin(np.abs(data))
+
     # Determining the normalisation.
     if norm == 'linear':
         from matplotlib.colors import Normalize
-        if vmax is None:
-            if phaseCond:
-                vmax = np.nanmax(data)
-            else:
-                vmax = np.nanmax(np.abs(data))
-        if vmin is None:
-            if phaseCond:
-                vmin = np.nanmin(data)
-            else:
-                vmin = np.nanmin(np.abs(data))
         if vmax == vmin:
             vmin=0
         norm = Normalize(vmin=vmin,vmax=vmax)
     elif norm == 'log':
         from matplotlib.colors import LogNorm
-        if vmax is None:
-            vmax = np.nanmax(np.abs(data))
-        if vmin is None:
-            vmin = np.nanmin(np.abs(data))
         if vmax == vmin:
             vmin=1e-1
         norm = LogNorm(vmin=vmin,vmax=vmax)
