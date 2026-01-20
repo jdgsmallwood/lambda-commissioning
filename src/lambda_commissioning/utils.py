@@ -97,8 +97,7 @@ def make_correlation_tensor(visTensor,antPairs):
 
     return corrTensor
 
-
-def calc_median_phase_deviation(corrTensor):
+def calc_phase_deviation(corrTensor):
     """calc_median_phase_deviation _summary_
 
     Parameters
@@ -112,7 +111,47 @@ def calc_median_phase_deviation(corrTensor):
         _description_
     """
 
-    phaseDeviationMatrix = np.median(np.std(np.angle(corrTensor,
+    phaseDeviationMatrix = np.std(np.angle(corrTensor,deg=True),axis=0)
+    
+    return phaseDeviationMatrix
+
+def calc_amplitude_deviation(corrTensor):
+    """calc_median_phase_deviation Calculates the std for a given correlation 
+    matrix over time for all channels.
+
+    Parameters
+    ----------
+    corrTensor : _type_
+        _description_
+
+    Returns
+    -------
+    _type_
+        _description_
+    """
+
+    amplitudeDeviationMatrix = np.std(np.abs(corrTensor),axis=0)
+    
+    return amplitudeDeviationMatrix
+
+def calc_median_phase_deviation(corrTensor):
+    """calc_median_phase_deviation Calculates the std for a given correlation 
+    matrix over time for all channels.
+
+    Parameters
+    ----------
+    corrTensor : _type_
+        _description_
+
+    Returns
+    -------
+    _type_
+        _description_
+    """
+
+    #phaseDeviationMatrix = np.median(np.std(np.angle(corrTensor,
+    #                                                 deg=True),axis=0),axis=0)
+    phaseDeviationMatrix = np.min(np.std(np.angle(corrTensor,
                                                      deg=True),axis=0),axis=0)
     
     return phaseDeviationMatrix
@@ -131,7 +170,9 @@ def calc_median_amplitude_deviation(corrTensor):
         _description_
     """
 
-    amplitudeDeviationMatrix = np.median(np.std(np.abs(corrTensor),
+    #amplitudeDeviationMatrix = np.median(np.std(np.abs(corrTensor),
+    #                                            axis=0),axis=0)
+    amplitudeDeviationMatrix = np.min(np.std(np.abs(corrTensor),
                                                 axis=0),axis=0)
     
     return amplitudeDeviationMatrix
