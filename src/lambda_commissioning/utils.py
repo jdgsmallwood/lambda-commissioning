@@ -36,7 +36,7 @@ def read_hdf5_data_capture(filePath,verbose=False,returnCorrMatrix=False):
         # If True convert the visibility tensors into a correlation matrix
         # form, with Ntime,Nchan,Nant,Nant, being the output shape.
         antIDs1,antIDs2 = split_baseline(blineIDs)
-        antPairs = [(ant1,antIDs2[ind]) for ind,ant1 in enumerate(antIDs1)]
+        antPairs = [(int(ant1),int(antIDs2[ind])) for ind,ant1 in enumerate(antIDs1)]
 
         visXXcorrMatrix = make_correlation_tensor(visXXtensor,antPairs)
         visYYcorrMatrix = make_correlation_tensor(visYYtensor,antPairs)
@@ -89,11 +89,18 @@ def make_correlation_tensor(visTensor,antPairs):
     """
     Ntimes = visTensor.shape[0]
     Nchans = visTensor.shape[1]
-    Nants = max(max(pair) for pair in antPairs) + 1
+    antIDvec = np.unique(antPairs)
+    Nants = antIDvec.size
+
+    # Creating a dictionary that maps the antenna index to its name.
+    antNameDict = {f"{ant}" : ind for ind,ant in enumerate(antIDvec)}
+
     corrTensor = np.zeros((Ntimes,Nchans,Nants,Nants),dtype=np.complex64)
     for blInd,(ant1,ant2) in enumerate(antPairs):
-        corrTensor[:,:,ant1,ant2] = visTensor[:,:,blInd]
-        corrTensor[:,:,ant2,ant1] = np.conj(visTensor[:,:,blInd])
+        # Getting the index that matches the antenna name.
+        ind1,ind2 = antNameDict[str(ant1)],antNameDict[str(ant2)]
+        corrTensor[:,:,ind1,ind2] = visTensor[:,:,blInd]
+        corrTensor[:,:,ind2,ind1] = np.conj(visTensor[:,:,blInd])
 
     return corrTensor
 
