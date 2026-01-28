@@ -1,7 +1,8 @@
 import numpy as np
 import h5py as h5
 
-def read_hdf5_data_capture(filePath,verbose=False,returnCorrMatrix=False):
+def read_hdf5_data_capture(filePath,verbose=False,returnCorrMatrix=False,
+                           flagZeros=True):
     """
     Reads a dataset from an HDF5 file and returns it as a numpy array.
 
@@ -31,6 +32,12 @@ def read_hdf5_data_capture(filePath,verbose=False,returnCorrMatrix=False):
         #
         visXXtensor = dset[:,:,:,0,0,0] + 1j*dset[:,:,:,0,0,1]
         visYYtensor = dset[:,:,:,-1,-1,0] + 1j*dset[:,:,:,-1,-1,1]
+
+    # Assuming the same for XX and YY.
+    zeroBoolVec = visXXtensor[0,0,:] != 0
+    visXXtensor = visXXtensor[:,:,zeroBoolVec]
+    visYYtensor = visYYtensor[:,:,zeroBoolVec]
+    blineIDs = blineIDs[zeroBoolVec]
 
     if returnCorrMatrix:
         # If True convert the visibility tensors into a correlation matrix
