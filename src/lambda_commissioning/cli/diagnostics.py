@@ -8,10 +8,12 @@ from lambda_commissioning.utils import read_hdf5_data_capture,split_baseline,mak
 import os,sys
 from scipy.stats import iqr
 import toml
+import json
 import importlib.resources as resources
 
 configFile = "default_config.toml"
 configPath = "lambda_commissioning.config"
+antennaConfigPath = resources.files('lambda_commissioning.data')
 
 with resources.files(configPath).joinpath(configFile).open("r") as f:
     config = toml.load(f)
@@ -20,6 +22,13 @@ directoryDict = config.get("paths", {})
 
 dataPath = directoryDict['dataPath']
 outPath = directoryDict['outputPath']
+
+
+# Antenna mapping dictionary.
+mappingFile = "LAMBDA36-antenna-mappings.json"
+with antennaConfigPath.joinpath(mappingFile).open("r") as f:
+    antennaDict = json.load(f)
+
 
 diagnosticApp = typer.Typer(pretty_exceptions_enable=False)
 
@@ -295,31 +304,15 @@ def vis(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
     if not(os.path.exists(filePath)):
         raise FileNotFoundError(f"No file {filePath}.")
     # Reading in the data.
-    visXXtensor,visYYtensor,blineIDs = read_hdf5_data_capture(filePath,
-                                                                verbose=verbose)
-    # Splitting the baselines into antenna IDs for each baseline.
-    ants1,ants2 = split_baseline(blineIDs)
-    antPairs = np.vstack((ants1,ants2)).T
-    antIDlist = np.unique(ants1)
-    Na = np.unique(ants1).size # Number of antennas.
-    Nt = visXXtensor.shape[0] # Number of time steps.
-    Nc = visXXtensor.shape[1] # Number of channels.
-    Nb = Na*(Na-1)/2 # Number of baselines not including the autos.
+    corrTensorXX,corrTensorYY,antPairs = read_hdf5_data_capture(filePath,
+                                                                verbose=verbose,
+                                                                returnCorrMatrix=True)
 
-    # Reorganising into correlation tensos (matrix for each time and 
-    # channel). Not strictly necessary, but useful for calibrating and 
-    # performing matrix operations on the correlation data.
-    corrTensorXX = make_correlation_tensor(visXXtensor,antPairs)
-    corrTensorYY = make_correlation_tensor(visYYtensor,antPairs)
-    del visXXtensor,visYYtensor
-
-    # Getting a list of the good and the zeroed antennas:
-    corrAutoVec = corrTensorXX[0,0,antIDlist,antIDlist]
-    zeroAntInds = antIDlist[corrAutoVec == 0]
-    goodAntInds = antIDlist[corrAutoVec != 0]
-    Na = len(goodAntInds)
-    Nb = Na*(Na-1)/2 # Number of baselines not including the autos.
-
+    antIDlist = np.unique(antPairs)
+    Na = antIDlist.size # Number of antennas.
+    Nt = corrTensorXX.shape[0] # Number of time steps.
+    Nc = corrTensorXX.shape[1] # Number of channels.
+    antIndVec = np.arange(Na)
     if channel is not None:
         channels = np.arange(channel,channel+Nc,Nc)
 
@@ -327,21 +320,25 @@ def vis(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
         print(outputDir)
         print(filename)
         print(verbose)
-        print(Nt,Nc,Nb,Na)
+        print(Nt,Nc,Na)
 
     ###
-    for i,antInd in enumerate(goodAntInds):
-        ant1 = antInd
-        ant2 = np.random.choice(np.delete(goodAntInds,i),size=1)[0]
+    for ant1 in antIndVec:
+        ant2 = np.random.choice(np.delete(antIndVec,ant1),size=1)[0]
+        antID1 = antIDlist[ant1]
+        antID2 = antIDlist[ant2]
 
         if channel is not None:
-            titleXX = f"pol:XX, channel={channels[0]}, antID1={ant1}, antID2={ant2}, blineID={256*ant1+ant2}"
-            titleYY = f"pol:YY, channel={channels[0]}, antID1={ant1}, antID2={ant2}, blineID={256*ant1+ant2}"
+            titleXX = f"pol:XX, channel={channels[0]}, antID1={antID1}, " +\
+                f"antID2={antID2}, blineID={256*antID1+antID2}"
+            titleYY = f"pol:YY, channel={channels[0]}, antID1={antID1}, " +\
+                f"antID2={antID2}, blineID={256*antID1+antID2}"
         else:
-            titleXX = f"pol:XX, antID1={ant1}, antID2={ant2}, blineID={256*ant1+ant2}"
-            titleYY = f"pol:YY, antID1={ant1}, antID2={ant2}, blineID={256*ant1+ant2}"
+            titleXX = f"pol:XX, antID1={antID1}, antID2={antID2}, " +\
+                f"blineID={256*antID1+antID2}"
+            titleYY = f"pol:YY, antID1={antID1}, antID2={antID2}, " +\
+                f"blineID={256*antID1+antID2}"
             
-        
         visWaterfallXX = np.abs(corrTensorXX[:,:,ant1,ant2])
         visWaterfallPhaseXX = corrTensorXX[:,:,ant1,ant2]
         stdXX = iqr(visWaterfallXX)/1.35
@@ -357,7 +354,7 @@ def vis(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
                                     constrained_layout=True)
             waterfallPlot(visWaterfallXX,cmap=cmap,title=titleXX,
                         figaxs=(fig,axs))
-            outFileNameXXamp = f"vis_amp_waterfall_ant1_{ant1}_ant2_{ant2}_polXX.png"
+            outFileNameXXamp = f"vis_amp_waterfall_ant1_{antID1}_ant2_{antID2}_polXX.png"
             fig.savefig(outputAmpDir+outFileNameXXamp,dpi=300,bbox_inches='tight')
             plt.close()
                 
@@ -366,7 +363,7 @@ def vis(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
                                     constrained_layout=True)
             waterfallPlot(visWaterfallPhaseXX,cmap=cmr.wildfire,title=titleXX,
                           figaxs=(fig,axs),phaseCond=True,norm='linear')
-            outFileNameXXphase = f"vis_phase_waterfall_ant1_{ant1}_ant2_{ant2}_polXX.png"
+            outFileNameXXphase = f"vis_phase_waterfall_ant1_{antID1}_ant2_{antID2}_polXX.png"
             fig.savefig(outputPhaseDir+outFileNameXXphase,dpi=300,bbox_inches='tight')
             plt.close()
         
@@ -374,7 +371,7 @@ def vis(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
             fig,axs = plt.subplots(1,figsize=(10,5))
             fringePlot(corrTensorXX[:,0,ant1,ant2],figaxs=(fig,axs))
             axs.set_title(titleXX)
-            outFileNameXXfringe = f"vis_fringe_ant1_{ant1}_ant2_{ant2}_polXX.png"
+            outFileNameXXfringe = f"vis_fringe_ant1_{antID1}_ant2_{antID2}_polXX.png"
             fig.savefig(outputFringeDir+outFileNameXXfringe,dpi=300,bbox_inches='tight')
             plt.close()
 
@@ -385,7 +382,7 @@ def vis(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
         else:
             print(avgXX,stdXX)
             print(visWaterfallXX[:,-1])
-            print(f"XX vis is zero for {antInd}")
+            print(f"XX vis is zero for {antID1}")
 
         #
         visWaterfallYY = np.abs(corrTensorYY[:,:,ant1,ant2])
@@ -401,7 +398,7 @@ def vis(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
                                     constrained_layout=True)
             waterfallPlot(visWaterfallYY,cmap=cmap,title=titleYY,
                           figaxs=(fig,axs))
-            outFileNameYYamp = f"vis_amp_waterfall_ant1_{ant1}_ant2_{ant2}_polYY.png"
+            outFileNameYYamp = f"vis_amp_waterfall_ant1_{antID1}_ant2_{antID2}_polYY.png"
             fig.savefig(outputAmpDir+outFileNameYYamp,dpi=300,bbox_inches='tight')
             plt.close()
 
@@ -410,7 +407,7 @@ def vis(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
                                     constrained_layout=True)
             waterfallPlot(visWaterfallPhaseYY,cmap=cmr.wildfire,title=titleYY,
                           figaxs=(fig,axs),phaseCond=True,norm='linear')
-            outFileNameYYphase = f"vis_phase_waterfall_ant1_{ant1}_ant2_{ant2}_polYY.png"
+            outFileNameYYphase = f"vis_phase_waterfall_ant1_{antID1}_ant2_{antID2}_polYY.png"
             fig.savefig(outputPhaseDir+outFileNameYYphase,dpi=300,bbox_inches='tight')
             plt.close()
             
@@ -418,7 +415,7 @@ def vis(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
             fig,axs = plt.subplots(1,figsize=(10,5))
             fringePlot(corrTensorYY[:,0,ant1,ant2],figaxs=(None,axs))
             axs.set_title(titleYY)
-            outFileNameYYfringe = f"vis_fringe_ant1_{ant1}_ant2_{ant2}_polYY.png"
+            outFileNameYYfringe = f"vis_fringe_ant1_{antID1}_ant2_{antID2}_polYY.png"
             fig.savefig(outputFringeDir+outFileNameYYfringe,dpi=300,bbox_inches='tight')
             plt.close()
 
@@ -428,6 +425,6 @@ def vis(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
                 print(outputFringeDir+outFileNameYYfringe)
         else:
             print(avgYY,stdYY)
-            print(f"YY vis is zero for {antInd}")
+            print(f"YY vis is zero for {antID1}")
 
         
