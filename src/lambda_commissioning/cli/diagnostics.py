@@ -159,31 +159,15 @@ def autos(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
         raise FileNotFoundError(f"No file {filePath}.")
 
     # Reading in the data.
-    visXXtensor,visYYtensor,blineIDs = read_hdf5_data_capture(filePath,
-                                                                verbose=verbose)
-    # Splitting the baselines into antenna IDs for each baseline.
-    ants1,ants2 = split_baseline(blineIDs)
-    antPairs = np.vstack((ants1,ants2)).T
-    antIDlist = np.unique(ants1)
-    Na = np.unique(ants1).size # Number of antennas.
-    Nt = visXXtensor.shape[0] # Number of time steps.
-    Nc = visXXtensor.shape[1] # Number of channels.
-    Nb = Na*(Na-1)/2 # Number of baselines not including the autos.
+    corrTensorXX,corrTensorYY,antPairs = read_hdf5_data_capture(filePath,
+                                                                verbose=verbose,
+                                                                returnCorrMatrix=True)
 
-    # Reorganising into correlation tensos (matrix for each time and 
-    # channel). Not strictly necessary, but useful for calibrating and 
-    # performing matrix operations on the correlation data.
-    corrTensorXX = make_correlation_tensor(visXXtensor,antPairs)
-    corrTensorYY = make_correlation_tensor(visYYtensor,antPairs)
-    del visXXtensor,visYYtensor
-
-    # Getting a list of the good and the zeroed antennas:
-    corrAutoVec = corrTensorXX[0,0,antIDlist,antIDlist]
-    zeroAntInds = antIDlist[corrAutoVec == 0]
-    goodAntInds = antIDlist[corrAutoVec != 0]
-    Na = len(goodAntInds)
-    Nb = Na*(Na-1)/2 # Number of baselines not including the autos.
-
+    antIDlist = np.unique(antPairs)
+    Na = antIDlist.size # Number of antennas.
+    Nt = corrTensorXX.shape[0] # Number of time steps.
+    Nc = corrTensorXX.shape[1] # Number of channels.
+    antIndVec = np.arange(Na)
     if channel is not None:
         channels = np.arange(channel,channel+Nc,Nc)
 
@@ -191,7 +175,7 @@ def autos(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
         print(outputDir)
         print(filename)
         print(verbose)
-        print(Nt,Nc,Nb,Na)
+        print(Nt,Nc,Na)
 
     
     # Generating the waterfall plots for the auto correlations. We do this 
@@ -204,11 +188,11 @@ def autos(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
     autoXXmeanVec = np.zeros((Na,Nc))
     autoYYmeanVec = np.zeros((Na,Nc))
     
-    
-    for i,antInd in enumerate(goodAntInds):
+    for i in antIndVec:
+        antID = antIDlist[i]
         #
-        waterFallXX = np.abs(corrTensorXX[:,:,antInd,antInd])
-        waterFallYY = np.abs(corrTensorYY[:,:,antInd,antInd])
+        waterFallXX = np.abs(corrTensorXX[:,:,i,i])
+        waterFallYY = np.abs(corrTensorYY[:,:,i,i])
 
         # Saving statistics.
         autoXXmeanVec[i,:] = np.nanmedian(waterFallXX,axis=0)
@@ -233,9 +217,9 @@ def autos(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
             #
             fig,axs = plt.subplots(1,figsize=(2*W,W),sharex=True,
                                 constrained_layout=True)
-            outFileNameXX = f"auto_correlation_ant{antInd}_polXX.png"
+            outFileNameXX = f"auto_correlation_ant{antID}_polXX.png"
             
-            waterfallPlot(waterFallXX,cmap=cmap,title=f'AntID: {antInd}, XX',
+            waterfallPlot(waterFallXX,cmap=cmap,title=f'AntID: {antID}, XX',
                         figaxs=(fig,axs))
             fig.savefig(outputAutosDir+outFileNameXX,dpi=300,bbox_inches='tight')
             plt.close()
@@ -243,21 +227,21 @@ def autos(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
             if verbose:
                 print(outputAutosDir+outFileNameXX)
         else:
-            print(f"XX waterfall is zero for {antInd}")
+            print(f"XX waterfall is zero for {antID}")
         
         #
         if np.any(autoYYmeanVec[i,:]) and np.any(autoYYstdVec[i,:]):
             fig,axs = plt.subplots(1,figsize=(2*W,W),sharex=True,
                                 constrained_layout=True)
-            outFileNameYY = f"auto_correlation_ant{antInd}_polYY.png"
-            waterfallPlot(waterFallYY,cmap=cmap,title=f'AntID: {antInd}, YY',
+            outFileNameYY = f"auto_correlation_ant{antID}_polYY.png"
+            waterfallPlot(waterFallYY,cmap=cmap,title=f'AntID: {antID}, YY',
                         figaxs=(fig,axs))
             fig.savefig(outputAutosDir+outFileNameYY,dpi=300,bbox_inches='tight')
             plt.close()
             if verbose:
                 print(outputAutosDir+outFileNameYY)
         else:    
-            print(f"YY waterfall is zero for {antInd}")
+            print(f"YY waterfall is zero for {antID}")
         
 
 @diagnosticApp.command()
