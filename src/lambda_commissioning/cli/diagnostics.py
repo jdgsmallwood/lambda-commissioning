@@ -149,7 +149,7 @@ def stats(filename: Annotated[str,typer.Argument(help=statsHelpList[0])] = "",
     badAntennaIndsXX = np.arange(antennaIDs.size)[medianPhaseDevAntsXX >= phasethresh]
     badAntennaIndsYY = np.arange(antennaIDs.size)[medianPhaseDevAntsYY >= phasethresh]
 
-    if plot:
+    if verbose:
         print("===============================================================")
         print(f"Number of antennas = {antennaIDs.size}")
         print("Antenna Indices:")
@@ -157,6 +157,8 @@ def stats(filename: Annotated[str,typer.Argument(help=statsHelpList[0])] = "",
         print("Antenna IDs:")
         print(antennaIDs)
         print(alveoVec)
+        print(portVec)
+        print(adcVec)
         print("XX median phase per antenna [deg]:")
         print(medianPhaseDevAntsXX)
         print("YY median phase per antenna [deg]:")
@@ -181,6 +183,7 @@ def stats(filename: Annotated[str,typer.Argument(help=statsHelpList[0])] = "",
         print("PORT:",portVec[badAntennaIndsYY])
         print("===============================================================")
 
+    if plot:
         plt.show()
 
 
@@ -386,8 +389,8 @@ def vis(filename: Annotated[str,typer.Argument(help=visHelpList[0])] = "",
         else:
             ant2 = np.random.choice(np.delete(antIndVec,ant1),size=1)[0]
         
-        if ant1 == ant2:
-            continue
+        #if ant1 == ant2:
+        #    continue
                 
         antID1 = int(antIDlist[ant1])
         antID2 = int(antIDlist[ant2])
