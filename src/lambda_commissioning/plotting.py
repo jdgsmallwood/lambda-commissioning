@@ -74,6 +74,9 @@ def waterfallPlot(data,times=None,channels=None,figaxs=None,cmap=cmr.dusk,
         from matplotlib.colors import LogNorm
         if vmax == vmin:
             vmin=1e-1
+        if vmin == 0:
+            if vmax > 0:
+                vmin = 1e-1 * vmax
         norm = LogNorm(vmin=vmin,vmax=vmax)
     
     if np.any(vmin) and np.any(vmax):
