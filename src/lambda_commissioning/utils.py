@@ -68,6 +68,9 @@ def read_hdf5_data_capture(filePath,verbose=False,returnCorrMatrix=False,
 
         antPairs = [(int(ant1),int(antIDs2[ind])) \
                     for ind,ant1 in enumerate(antIDs1)]
+        # Also need to remove these correlations from the visibility tensor.
+        visXXtensor = visXXtensor[:,:,antIDboolVec]
+        visYYtensor = visYYtensor[:,:,antIDboolVec]
 
         visXXcorrMatrix = make_correlation_tensor(visXXtensor,antPairs)
         visYYcorrMatrix = make_correlation_tensor(visYYtensor,antPairs)
