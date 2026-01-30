@@ -1,5 +1,15 @@
 import numpy as np
 import h5py as h5
+import json
+import importlib.resources as resources
+
+
+antennaConfigPath = resources.files('lambda_commissioning.data')
+# Antenna mapping dictionary.
+mappingFile = "LAMBDA36-antenna-mappings.json"
+with antennaConfigPath.joinpath(mappingFile).open("r") as f:
+    antennaDict = json.load(f)
+    antennaIDs = np.array(list(antennaDict.keys())).astype(int)
 
 def read_hdf5_data_capture(filePath,verbose=False,returnCorrMatrix=False,
                            flagZeros=True):
@@ -24,26 +34,40 @@ def read_hdf5_data_capture(filePath,verbose=False,returnCorrMatrix=False,
             print("Dataset attributes:", list(dset.attrs.keys()))
             print("File attributes:", list(hdf_file.attrs.keys()))
         blineIDs = hdf_file["baseline_ids"][:]
-
-        if np.any(blineIDs<0):
-            if verbose:
-                print("Negative blineIDs present, indicate non-data, removing.")
-            blineIDs = blineIDs[blineIDs>0]
         #
         visXXtensor = dset[:,:,:,0,0,0] + 1j*dset[:,:,:,0,0,1]
         visYYtensor = dset[:,:,:,-1,-1,0] + 1j*dset[:,:,:,-1,-1,1]
 
+        if np.any(blineIDs<0):
+            if verbose:
+                print("Negative blineIDs present, indicate non-data, removing.")
+            visXXtensor = visXXtensor[:,:,blineIDs>0]
+            visYYtensor = visYYtensor[:,:,blineIDs>0]
+            blineIDs = blineIDs[blineIDs>0]
+
     # Assuming the same for XX and YY.
-    zeroBoolVec = visXXtensor[0,0,:] != 0
-    visXXtensor = visXXtensor[:,:,zeroBoolVec]
-    visYYtensor = visYYtensor[:,:,zeroBoolVec]
-    blineIDs = blineIDs[zeroBoolVec]
+    if flagZeros:
+        # Make sure there are no zero antennas.
+        zeroBoolVec = visXXtensor[0,0,:] != 0
+        visXXtensor = visXXtensor[:,:,zeroBoolVec]
+        visYYtensor = visYYtensor[:,:,zeroBoolVec]
+        blineIDs = blineIDs[zeroBoolVec]
 
     if returnCorrMatrix:
         # If True convert the visibility tensors into a correlation matrix
         # form, with Ntime,Nchan,Nant,Nant, being the output shape.
         antIDs1,antIDs2 = split_baseline(blineIDs)
-        antPairs = [(int(ant1),int(antIDs2[ind])) for ind,ant1 in enumerate(antIDs1)]
+        
+        # Checking that there are no invalid values:
+        antIDs1BoolVec = (antIDs1 >= antennaIDs[0])*(antIDs1 <= antennaIDs[-1])
+        antIDs2BoolVec = (antIDs2 >= antennaIDs[0])*(antIDs2 <= antennaIDs[-1])
+        antIDboolVec = antIDs1BoolVec*antIDs2BoolVec
+        
+        antIDs1 = antIDs1[antIDboolVec]
+        antIDs2 = antIDs2[antIDboolVec]
+
+        antPairs = [(int(ant1),int(antIDs2[ind])) \
+                    for ind,ant1 in enumerate(antIDs1)]
 
         visXXcorrMatrix = make_correlation_tensor(visXXtensor,antPairs)
         visYYcorrMatrix = make_correlation_tensor(visYYtensor,antPairs)
