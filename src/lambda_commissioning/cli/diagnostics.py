@@ -43,14 +43,21 @@ def file_header(filename: Annotated[str,typer.Argument(help="Data filename.")] =
         print("Dataset shape:", dset.shape)
         print("Dataset attrs:",list(dset.attrs.keys()))
 
+
+statsHelpList = ["Data filename.","Verbose arg.",
+                 "Plot the deviation matrices.",
+                 "Starting channel of the observation.",
+                 "Phase threshold."]
 @diagnosticApp.command()
-def stats(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
+def stats(filename: Annotated[str,typer.Argument(help=statsHelpList[0])] = "",
           verbose: Annotated[bool,typer.Option("-v","--verbose",
-                                               help="Test optional arg.")] = False,
+                                               help=statsHelpList[1])] = False,
           plot: Annotated[bool,typer.Option("-p","--plot",
-                                               help="Plot the deviation matrices.")] = False,
+                                               help=statsHelpList[2])] = False,
           channel: Annotated[int,typer.Option("-c","--channel",
-                                              help="Starting channel of the observation.")] = None):
+                                              help=statsHelpList[3])] = None,
+          phasethresh: Annotated[float,typer.Option("--phaseThresh",help=statsHelpList[4])] = 20):
+    
     from lambda_commissioning.utils import calc_median_amplitude_deviation
     from lambda_commissioning.utils import calc_median_phase_deviation
     from lambda_commissioning.utils import split_baseline,make_correlation_tensor
@@ -83,6 +90,13 @@ def stats(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
                                                               verbose=verbose,
                                                               returnCorrMatrix=True)
   
+    antennaIDs = np.unique(antPairs)
+    antennaIDs = antennaIDs[antennaIDs!=0]
+    eastVec = np.array([antennaDict[str(ant)]['east'] for ant in antennaIDs])
+    northVec = np.array([antennaDict[str(ant)]['north'] for ant in antennaIDs])
+    alveoVec = np.array([antennaDict[str(ant)]['ALVEO'] for ant in antennaIDs])
+    adcVec = np.array([antennaDict[str(ant)]['ADC'] for ant in antennaIDs])
+    portVec = np.array([antennaDict[str(ant)]['PORT'] for ant in antennaIDs])
     # Calculating the median phase and amplitude deviation per channel.
     ampDevMatrixXX = calc_median_amplitude_deviation(visXXtensor)
     phaseDevMatrixXX = calc_median_phase_deviation(visXXtensor)
@@ -103,13 +117,13 @@ def stats(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
     cb2 = fig.colorbar(im2,ax=axs[0,1],label='Amp [arb units]')
     axs[0,1].set_title('Amp Deviation YY')
 
-    im3 = axs[1,0].imshow(phaseDevMatrixXX,norm='log')
+    im3 = axs[1,0].imshow(phaseDevMatrixXX,norm='linear')
     cb3 = fig.colorbar(im3,ax=axs[1,0],label='Phase [rad]')
     axs[1,0].set_title('Phase Deviation XX')
     axs[1,0].set_xlabel('AntIDs')
     axs[1,0].set_ylabel('AntIDs')
 
-    im4 = axs[1,1].imshow(phaseDevMatrixYY,norm='log')
+    im4 = axs[1,1].imshow(phaseDevMatrixYY,norm='linear')
     cb4 = fig.colorbar(im4,ax=axs[1,1],label='Phase [rad]')
     axs[1,1].set_title('Phase Deviation YY')
     axs[1,1].set_xlabel('AntIDs')
@@ -123,7 +137,49 @@ def stats(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
              ampDevMatrixYY=ampDevMatrixYY,phaseDevMatrixXX=phaseDevMatrixXX,
              phaseDevMatrixYY=phaseDevMatrixYY)
 
+    medianAmpDevAntsXX = np.zeros(antennaIDs.size)
+    medianAmpDevAntsYY = np.zeros(antennaIDs.size)
+    medianPhaseDevAntsXX = np.zeros(antennaIDs.size)
+    medianPhaseDevAntsYY = np.zeros(antennaIDs.size)
+
+    for i in range(antennaIDs.size):
+
+        medianAmpDevAntsXX[i] = np.nanmedian(ampDevMatrixXX[i,:])
+        medianAmpDevAntsYY[i] = np.nanmedian(ampDevMatrixYY[i,:])
+        medianPhaseDevAntsXX[i] = np.nanmedian(phaseDevMatrixXX[i,:])
+        medianPhaseDevAntsYY[i] = np.nanmedian(phaseDevMatrixYY[i,:])
+
+    badAntennaIndsXX = np.arange(antennaIDs.size)[medianPhaseDevAntsXX >= phasethresh]
+    badAntennaIndsYY = np.arange(antennaIDs.size)[medianPhaseDevAntsYY >= phasethresh]
+
     if plot:
+        print("Antenna Indices:")
+        print(np.arange(antennaIDs.size))
+        print("Antenna IDs:")
+        print(antennaIDs)
+        print("XX median phase per antenna [deg]:")
+        print(medianPhaseDevAntsXX)
+        print("YY median phase per antenna [deg]:")
+        print(medianPhaseDevAntsYY)
+        print("Bad Antenna Indices XX and IDs:")
+        print(antennaIDs[badAntennaIndsXX])
+        
+        print("===============================================================")
+        print("Bad Antenna Indices XX and IDs:")
+        print("INDs, ID, ADC, ALVEO, PORT")
+        print(badAntennaIndsXX)
+        print(antennaIDs[badAntennaIndsXX])
+        print("ADC:",adcVec[badAntennaIndsXX])
+        print("ALVEO:",alveoVec[badAntennaIndsXX])
+        print("PORT:",portVec[badAntennaIndsXX])
+        print("Bad Antenna Indices YY and IDs:")
+        print("INDs, ID, ADC, ALVEO, PORT")
+        print(badAntennaIndsYY)
+        print(antennaIDs[badAntennaIndsYY])
+        print("ADC:",adcVec[badAntennaIndsYY])
+        print("ALVEO:",alveoVec[badAntennaIndsYY])
+        print("PORT:",portVec[badAntennaIndsYY])
+
         plt.show()
 
 
@@ -244,12 +300,18 @@ def autos(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
             print(f"YY waterfall is zero for {antID}")
         
 
+visHelpList = ["Data filename.","If given print additional information",
+            "Starting channel of the observation.",
+            "Antenna to plot baselines for. Optional."]
+
 @diagnosticApp.command()
-def vis(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
+def vis(filename: Annotated[str,typer.Argument(help=visHelpList[0])] = "",
         verbose: Annotated[bool,typer.Option("-v","--verbose",
-                                             help="Test optional arg.")] = False,
+                                             help=visHelpList[1])] = False,
         channel: Annotated[int,typer.Option("-c","--channel",
-                                            help="Starting channel of the observation.")] = None):
+                                            help=visHelpList[2])] = None,
+        antenna: Annotated[int,typer.Option("-a","--antenna",
+                                            help=visHelpList[3])] = None):
 
     # Creating the output directory name.
     outputDir = outPath + f"{filename.split('.')[0]}/"
@@ -297,18 +359,35 @@ def vis(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
     Nt = corrTensorXX.shape[0] # Number of time steps.
     Nc = corrTensorXX.shape[1] # Number of channels.
     antIndVec = np.arange(Na)
+    antIDvec = np.unique(antPairs)
     if channel is not None:
         channels = np.arange(channel,channel+Nc,Nc)
+
+    if antenna is not None:
+        if antenna >= Na:
+            err = f"Antenna = {antenna}, index value should be less than " +\
+                  f"the number of antennas {Na}."
+            raise ValueError(err)
+        
 
     if verbose:
         print(outputDir)
         print(filename)
         print(verbose)
         print(Nt,Nc,Na)
+        if antenna is not None:
+            print(f"Generating plots for all baselines with {antIDvec[antenna]}.")
 
     ###
     for ant1 in antIndVec:
-        ant2 = np.random.choice(np.delete(antIndVec,ant1),size=1)[0]
+        if antenna is not None:
+            ant2 = antenna
+        else:
+            ant2 = np.random.choice(np.delete(antIndVec,ant1),size=1)[0]
+        
+        if ant1 == ant2:
+            continue
+
         antID1 = antIDlist[ant1]
         antID2 = antIDlist[ant2]
 
