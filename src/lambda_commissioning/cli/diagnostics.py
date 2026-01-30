@@ -92,8 +92,6 @@ def stats(filename: Annotated[str,typer.Argument(help=statsHelpList[0])] = "",
   
     antennaIDs = np.unique(antPairs)
     antennaIDs = antennaIDs[antennaIDs!=0]
-    eastVec = np.array([antennaDict[str(ant)]['east'] for ant in antennaIDs])
-    northVec = np.array([antennaDict[str(ant)]['north'] for ant in antennaIDs])
     alveoVec = np.array([antennaDict[str(ant)]['ALVEO'] for ant in antennaIDs])
     adcVec = np.array([antennaDict[str(ant)]['ADC'] for ant in antennaIDs])
     portVec = np.array([antennaDict[str(ant)]['PORT'] for ant in antennaIDs])
@@ -102,7 +100,6 @@ def stats(filename: Annotated[str,typer.Argument(help=statsHelpList[0])] = "",
     phaseDevMatrixXX = calc_median_phase_deviation(visXXtensor)
     ampDevMatrixYY = calc_median_amplitude_deviation(visYYtensor)
     phaseDevMatrixYY = calc_median_phase_deviation(visYYtensor)
-
 
     fig,axs = plt.subplots(2,2,figsize=(12,10),constrained_layout=True,
                                sharex=True,sharey=True)
@@ -153,10 +150,13 @@ def stats(filename: Annotated[str,typer.Argument(help=statsHelpList[0])] = "",
     badAntennaIndsYY = np.arange(antennaIDs.size)[medianPhaseDevAntsYY >= phasethresh]
 
     if plot:
+        print("===============================================================")
+        print(f"Number of antennas = {antennaIDs.size}")
         print("Antenna Indices:")
         print(np.arange(antennaIDs.size))
         print("Antenna IDs:")
         print(antennaIDs)
+        print(alveoVec)
         print("XX median phase per antenna [deg]:")
         print(medianPhaseDevAntsXX)
         print("YY median phase per antenna [deg]:")
@@ -179,6 +179,7 @@ def stats(filename: Annotated[str,typer.Argument(help=statsHelpList[0])] = "",
         print("ADC:",adcVec[badAntennaIndsYY])
         print("ALVEO:",alveoVec[badAntennaIndsYY])
         print("PORT:",portVec[badAntennaIndsYY])
+        print("===============================================================")
 
         plt.show()
 
@@ -186,7 +187,7 @@ def stats(filename: Annotated[str,typer.Argument(help=statsHelpList[0])] = "",
 @diagnosticApp.command()
 def autos(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
           verbose: Annotated[bool,typer.Option("-v","--verbose",
-                                               help="Test optional arg.")] = False,
+                                               help="Verbose argument.")] = False,
           channel: Annotated[int,typer.Option("-c","--channel",
                                               help="Starting channel of the observation.")] = None):
     # TODO: Save the statistics to a csv file.
@@ -376,7 +377,7 @@ def vis(filename: Annotated[str,typer.Argument(help=visHelpList[0])] = "",
         print(verbose)
         print(Nt,Nc,Na)
         if antenna is not None:
-            print(f"Generating plots for all baselines with {antIDvec[antenna]}.")
+            print(f"Generating plots for all baselines with antenna ID {antIDvec[antenna]}.")
 
     ###
     for ant1 in antIndVec:
@@ -387,9 +388,9 @@ def vis(filename: Annotated[str,typer.Argument(help=visHelpList[0])] = "",
         
         if ant1 == ant2:
             continue
-
-        antID1 = antIDlist[ant1]
-        antID2 = antIDlist[ant2]
+                
+        antID1 = int(antIDlist[ant1])
+        antID2 = int(antIDlist[ant2])
 
         if channel is not None:
             titleXX = f"pol:XX, channel={channels[0]}, antID1={antID1}, " +\
