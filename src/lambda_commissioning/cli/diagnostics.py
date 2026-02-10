@@ -187,13 +187,22 @@ def stats(filename: Annotated[str,typer.Argument(help=statsHelpList[0])] = "",
     if plot:
         plt.show()
 
-
+autosHelpList = ["Data filename.","Verbose argument.",
+                 "Starting channel of the observation.",
+                 "Amplitude Colorbar max.","Amplitude Colorbar min.",
+                 "Flag amplitude values above 5 sigma, default = True."]
 @diagnosticApp.command()
-def autos(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
+def autos(filename: Annotated[str,typer.Argument(help=autosHelpList[0])] = "",
           verbose: Annotated[bool,typer.Option("-v","--verbose",
-                                               help="Verbose argument.")] = False,
+                                               help=autosHelpList[1])] = False,
           channel: Annotated[int,typer.Option("-c","--channel",
-                                              help="Starting channel of the observation.")] = None):
+                                              help=autosHelpList[2])] = None,
+          amp_max: Annotated[float,typer.Option("--amp-max",
+                                            help=autosHelpList[3])] = None,
+          amp_min: Annotated[float,typer.Option("--amp-min",
+                                            help=autosHelpList[4])] = None,
+          flag_pixels: Annotated[bool,typer.Option(" /-f"," /--flag-pixels",
+                                             help=autosHelpList[5])] = True):
     # TODO: Save the statistics to a csv file.
     # Creating the output directory name.
     outputDir = outPath + f"{filename.split('.')[0]}/"
@@ -249,6 +258,16 @@ def autos(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
     autoXXmeanVec = np.zeros((Na,Nc))
     autoYYmeanVec = np.zeros((Na,Nc))
     
+    if amp_max is not None:
+            vmax = amp_max
+    else:
+        vmax = None
+
+    if amp_min is not None:
+        vmin = amp_min
+    else:
+        vmin = None
+
     for i in antIndVec:
         antID = antIDlist[i]
         #
@@ -264,12 +283,13 @@ def autos(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
         #
         stdXX = iqr(waterFallXX)/1.35
         avgXX = np.nanmedian(waterFallXX)
-        waterFallXX[waterFallXX > 3*stdXX+avgXX] = np.nan
         
         #
         stdYY = iqr(waterFallYY)/1.35
         avgYY = np.nanmedian(waterFallYY)
-        waterFallYY[waterFallYY > 3*stdYY+avgYY] = np.nan
+        if flag_pixels:
+            waterFallXX[waterFallXX > 3*stdXX+avgXX] = np.nan
+            waterFallYY[waterFallYY > 3*stdYY+avgYY] = np.nan
 
         # Check the data is not zero. If all zeros then truth value of stats 
         # will be False. If any stat value is True we can generate plots,
@@ -281,7 +301,7 @@ def autos(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
             outFileNameXX = f"auto_correlation_ant{antID}_polXX.png"
             
             waterfallPlot(waterFallXX,cmap=cmap,title=f'AntID: {antID}, XX',
-                        figaxs=(fig,axs))
+                        figaxs=(fig,axs),vmin=vmin,vmax=vmax)
             fig.savefig(outputAutosDir+outFileNameXX,dpi=300,bbox_inches='tight')
             plt.close()
 
@@ -296,7 +316,7 @@ def autos(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
                                 constrained_layout=True)
             outFileNameYY = f"auto_correlation_ant{antID}_polYY.png"
             waterfallPlot(waterFallYY,cmap=cmap,title=f'AntID: {antID}, YY',
-                        figaxs=(fig,axs))
+                        figaxs=(fig,axs),vmin=vmin,vmax=vmax)
             fig.savefig(outputAutosDir+outFileNameYY,dpi=300,bbox_inches='tight')
             plt.close()
             if verbose:
