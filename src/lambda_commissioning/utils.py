@@ -54,7 +54,7 @@ def read_hdf5_data_capture(filePath,verbose=False,returnCorrMatrix=False,
         blineIDs = blineIDs[zeroBoolVec]
 
     if returnCorrMatrix:
-        # If True convert the visibility tensors into a correlation matrix
+        # If True convert the visibility tensors into a correlation matrixß
         # form, with Ntime,Nchan,Nant,Nant, being the output shape.
         antIDs1,antIDs2 = split_baseline(blineIDs)
         
