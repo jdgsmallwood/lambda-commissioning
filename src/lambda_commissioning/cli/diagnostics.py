@@ -1,5 +1,6 @@
 import typer
 from typing_extensions import Annotated
+from typing import Optional, Tuple
 import numpy as np
 import matplotlib.pyplot as plt
 import cmasher as cmr
@@ -305,8 +306,10 @@ def autos(filename: Annotated[str,typer.Argument(help="Data filename.")] = "",
         
 
 visHelpList = ["Data filename.","If given print additional information",
-            "Starting channel of the observation.",
-            "Antenna to plot baselines for. Optional."]
+               "Starting channel of the observation.",
+               "Antenna to plot baselines for. Optional.",
+               "Amplitude Colorbar max.","Amplitude Colorbar min.",
+               "Flag amplitude values above 5 sigma, default = True."]
 
 @diagnosticApp.command()
 def vis(filename: Annotated[str,typer.Argument(help=visHelpList[0])] = "",
@@ -315,7 +318,14 @@ def vis(filename: Annotated[str,typer.Argument(help=visHelpList[0])] = "",
         channel: Annotated[int,typer.Option("-c","--channel",
                                             help=visHelpList[2])] = None,
         antenna: Annotated[int,typer.Option("-a","--antenna",
-                                            help=visHelpList[3])] = None):
+                                            help=visHelpList[3])] = None,
+        amp_max: Annotated[float,typer.Option("--amp-max",
+                                            help=visHelpList[4])] = None,
+        amp_min: Annotated[float,typer.Option("--amp-min",
+                                            help=visHelpList[5])] = None,
+        flag_pixels: Annotated[bool,typer.Option(" /-f"," /--flag-pixels",
+                                             help=visHelpList[6])] = True):
+        
 
     # Creating the output directory name.
     outputDir = outPath + f"{filename.split('.')[0]}/"
@@ -405,14 +415,25 @@ def vis(filename: Annotated[str,typer.Argument(help=visHelpList[0])] = "",
                 f"blineID={256*antID1+antID2}"
             titleYY = f"pol:YY, antID1={antID1}, antID2={antID2}, " +\
                 f"blineID={256*antID1+antID2}"
-            
+        
         visWaterfallXX = np.abs(corrTensorXX[:,:,ant1,ant2])
         visWaterfallPhaseXX = corrTensorXX[:,:,ant1,ant2]
         stdXX = iqr(visWaterfallXX)/1.35
         avgXX = np.nanmedian(visWaterfallXX)
-        visWaterfallXX[visWaterfallXX > 2*stdXX+avgXX] = np.nan
-        visWaterfallPhaseXX[visWaterfallXX > 2*stdXX+avgXX] = np.nan
+        if flag_pixels:
+            visWaterfallXX[visWaterfallXX > 2*stdXX+avgXX] = np.nan
+            visWaterfallPhaseXX[visWaterfallXX > 2*stdXX+avgXX] = np.nan
         
+        if amp_max is not None:
+            vmax = amp_max
+        else:
+            vmax = None
+
+        if amp_min is not None:
+            vmin = amp_min
+        else:
+            vmin = None
+
         if np.any(avgXX) and np.any(stdXX):
             W = 8
             cmap = cmr.dusk
@@ -420,7 +441,7 @@ def vis(filename: Annotated[str,typer.Argument(help=visHelpList[0])] = "",
             fig,axs = plt.subplots(1,figsize=(2*W,W),sharex=True,
                                     constrained_layout=True)
             waterfallPlot(visWaterfallXX,cmap=cmap,title=titleXX,
-                        figaxs=(fig,axs))
+                          figaxs=(fig,axs),vmin=vmin,vmax=vmax)
             outFileNameXXamp = f"vis_amp_waterfall_ant1_{antID1}_ant2_{antID2}_polXX.png"
             fig.savefig(outputAmpDir+outFileNameXXamp,dpi=300,bbox_inches='tight')
             plt.close()
@@ -456,8 +477,9 @@ def vis(filename: Annotated[str,typer.Argument(help=visHelpList[0])] = "",
         visWaterfallPhaseYY = corrTensorYY[:,:,ant1,ant2]
         stdYY = iqr(visWaterfallYY)/1.35
         avgYY = np.nanmedian(visWaterfallYY)
-        visWaterfallYY[visWaterfallYY > 2*stdYY+avgYY] = np.nan
-        visWaterfallPhaseYY[visWaterfallYY > 2*stdYY+avgYY] = np.nan
+        if flag_pixels:
+            visWaterfallYY[visWaterfallYY > 2*stdYY+avgYY] = np.nan
+            visWaterfallPhaseYY[visWaterfallYY > 2*stdYY+avgYY] = np.nan
         
         #
         if np.any(avgYY) and np.any(stdYY):
